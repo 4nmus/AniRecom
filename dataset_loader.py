@@ -21,7 +21,6 @@ logging.basicConfig(format='[%(asctime)s - %(name)s: %(levelname)s - %(message)s
 
 # Dataset functions
 
-
 def load_available_dataset() -> pd.DataFrame:
     try:
         path = os.getcwd()
@@ -50,6 +49,12 @@ def separate_combined_feature(df: pd.DataFrame, column:str, split_sign: str) -> 
     )
 
     df = pd.concat([df, df_genre], axis=1)
+    return df
+
+def append_user_columns(df: pd.DataFrame) -> pd.DataFrame:
+
+    df['liked'] = 0
+
     return df
 
 
