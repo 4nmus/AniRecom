@@ -20,5 +20,31 @@ def recommend_anime(df, genre_columns, n_recommendations=10):
     # Average genre preferences
     user_profile = liked_df[genre_columns].fillna(0).mean(axis=0).values.reshape(1, -1)
 
+    # KNN
+    knn = NearestNeighbors(
+        metric="cosine",
+        algorithm="brute"
+    )
+
+    knn.fit(X)
+
+    # extra because some results may already be liked
+    n_neighbors = min(len(df), n_recommendations + len(liked_df) + 10)
+
+    distances, indices = knn.kneighbors(user_profile, n_neighbors=n_neighbors)
+
+    recommendations = df.iloc[indices[0]].copy()
+
+    # Convert to similarity:
+    recommendations["similarity"] = 1 - distances[0]
+
+    # Remove already liked
+    recommendations = recommendations[
+        ~recommendations["anime_id"].isin(liked_df["anime_id"])
+    ]
+
+    return recommendations[
+        ["anime_id", "title", "score", "similarity"]
+    ].head(n_recommendations)
 
 
