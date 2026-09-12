@@ -6,7 +6,7 @@ import os
 
 
 def select_liked(df: pd.DataFrame):
-
+    # Custom selection since each user is individual. Will be changed soon
     likely_seen = df[df['score'] >= 9]
     for idx, row in likely_seen.head(100).iterrows():
         print("DId you watch ? ")
