@@ -47,4 +47,26 @@ def recommend_anime(df, genre_columns, n_recommendations=10):
         ["anime_id", "title", "score", "similarity"]
     ].head(n_recommendations)
 
+if __name__ == "__main__":
+    df = load_available_dataset()
+    original_columns = set(df.columns)
+    #separate 0/1 columns
+    df = separate_combined_feature(df, "genres", ";")
+
+    genre_columns = [column for column in df.columns if column not in original_columns]
+
+    df = append_user_columns(df)
+
+    print("Genres:")
+    print(genre_columns)
+
+    # Ask the user which anime they liked
+    df = select_liked(df)
+
+    recommendations = recommend_anime(df, genre_columns, n_recommendations=10)
+    print("\nRecommendations:")
+    print(recommendations.to_string(index=False))
+    df.to_csv("custom_df.csv", index=False)
+
+
 
