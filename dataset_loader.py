@@ -4,6 +4,7 @@ import numpy as np
 import os
 import logging
 from sklearn.preprocessing import MultiLabelBinarizer
+from pathlib import Path
 
 # Loggers
 file_handler = logging.FileHandler("logs.log")
@@ -21,20 +22,23 @@ logging.basicConfig(format='[%(asctime)s - %(name)s: %(levelname)s - %(message)s
 
 # Dataset functions
 
-def load_available_dataset() -> pd.DataFrame:
-    try:
-        path = os.getcwd()
-        path_to_files = f'{path}/datasets'
-        files = os.scandir(path_to_files)
-        for file in files:
-            if file.is_file():
-                df = pd.read_csv(f'{path}/datasets/{file.name}')
-                logging.debug(f'{path}/datasets/{file.name}')
-                break
-        return df
+def load_available_dataset(dataset_dir=None) -> pd.DataFrame:
+    if dataset_dir is None:
+        dataset_dir = Path(__file__).resolve().parent / "datasets"
+    else:
+        dataset_dir = Path(dataset_dir)
 
-    except Exception:
-        logging.error(f"No available csv found. It shall be in {os.getcwd()}/datasets")
+    csv_files = sorted(dataset_dir.glob("*.csv"))
+
+    if not csv_files:
+        raise FileNotFoundError(
+            f"No CSV dataset found in {dataset_dir}"
+        )
+
+    dataset_path = csv_files[0]
+    logging.info("Loading dataset from %s", dataset_path)
+
+    return pd.read_csv(dataset_path)
 
 
 def separate_combined_feature(df: pd.DataFrame, column:str, split_sign: str) -> pd.DataFrame:
