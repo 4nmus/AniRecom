@@ -34,16 +34,35 @@ def recommend_anime(df, genre_columns, n_recommendations=10):
 
     recommendations = df.iloc[indices[0]].copy()
 
-    # Convert to similarity:
     recommendations["similarity"] = 1 - distances[0]
 
-    # Remove already liked
+    recommendations["normalized_score"] = (
+            recommendations["score"].fillna(0) / 10
+    )
+
+    recommendations["recommendation_score"] = (
+            0.8 * recommendations["similarity"]
+            + 0.2 * recommendations["normalized_score"]
+    )
+
+    # Remove already liked anime
     recommendations = recommendations[
         ~recommendations["anime_id"].isin(liked_df["anime_id"])
     ]
 
+    recommendations = recommendations.sort_values(
+        "recommendation_score",
+        ascending=False
+    )
+
     return recommendations[
-        ["anime_id", "title", "score", "similarity"]
+        [
+            "anime_id",
+            "title",
+            "score",
+            "similarity",
+            "recommendation_score"
+        ]
     ].head(n_recommendations)
 
 def evaluate_recommender(df, genre_columns, n_recommendations=10, test_size=0.2, random_state=42):
