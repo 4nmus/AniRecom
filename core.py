@@ -97,7 +97,10 @@ if __name__ == "__main__":
     #separate 0/1 columns
     df = separate_combined_feature(df, "genres", ";")
 
-    genre_columns = [column for column in df.columns if column not in original_columns]
+    genre_columns = [
+        column for column in df.columns
+        if column.startswith("genre__")
+    ]
 
     df = append_user_columns(df)
 
