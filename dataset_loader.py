@@ -1,67 +1,63 @@
-import sys
-import pandas as pd
-import numpy as np
-import os
-import logging
-from sklearn.preprocessing import MultiLabelBinarizer
 from pathlib import Path
 
-# Loggers
-file_handler = logging.FileHandler("logs.log")
-file_handler.setLevel(logging.DEBUG)
+import pandas as pd
+from sklearn.preprocessing import MultiLabelBinarizer
 
-stream_handler = logging.StreamHandler(sys.stdout)
-stream_handler.setLevel(logging.INFO)
 
-logging.basicConfig(format='[%(asctime)s - %(name)s: %(levelname)s - %(message)s]',
-    level=logging.DEBUG,
-    handlers=[
-        file_handler, stream_handler
-    ],
-)
+REQUIRED_COLUMNS = {"anime_id", "title", "score", "genres"}
 
-# Dataset functions
 
-def load_available_dataset(dataset_dir=None) -> pd.DataFrame:
-    if dataset_dir is None:
-        dataset_dir = Path(__file__).resolve().parent / "datasets"
-    else:
-        dataset_dir = Path(dataset_dir)
-
-    csv_files = sorted(dataset_dir.glob("*.csv"))
-
-    if not csv_files:
-        raise FileNotFoundError(
-            f"No CSV dataset found in {dataset_dir}"
+def load_available_dataset(dataset_dir=None, dataset_path=None):
+    if dataset_path is None:
+        directory = (
+            Path(dataset_dir)
+            if dataset_dir is not None
+            else Path(__file__).resolve().parent / "datasets"
         )
+        csv_files = sorted(directory.glob("*.csv"))
 
-    dataset_path = csv_files[0]
-    logging.info("Loading dataset from %s", dataset_path)
+        if len(csv_files) != 1:
+            raise ValueError(
+                f"Expected exactly one CSV in {directory}; "
+                f"found {len(csv_files)}. Specify dataset_path."
+            )
+        dataset_path = csv_files[0]
 
-    return pd.read_csv(dataset_path)
+    df = pd.read_csv(dataset_path)
+
+    missing = REQUIRED_COLUMNS - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing required columns: {sorted(missing)}")
+
+    if df["anime_id"].isna().any() or df["anime_id"].duplicated().any():
+        raise ValueError("anime_id must be unique and non-null.")
+
+    df["score"] = pd.to_numeric(df["score"], errors="coerce")
+    return df
 
 
-def separate_combined_feature(df: pd.DataFrame, column:str, split_sign: str) -> pd.DataFrame:
-    # Used to separate combines features. Example df['genres'] = Fantasy; Drama -> df['fantasy'] = 1 , df['drama'] = 1
-    separaed_items = df[column].fillna('').str.split(f'{split_sign}')
-    mlb = MultiLabelBinarizer()
-    encoded = mlb.fit_transform(separaed_items)
-    df_genre = pd.DataFrame(
-        encoded,
-        columns=mlb.classes_,
-        index=df.index
+def separate_combined_feature(df, column="genres", split_sign=";"):
+    if column not in df.columns:
+        raise ValueError(f"Missing genre column: {column}")
+
+    genres = df[column].fillna("").astype(str).apply(
+        lambda value: sorted({
+            genre.strip()
+            for genre in value.split(split_sign)
+            if genre.strip()
+        })
     )
 
-    df = pd.concat([df, df_genre], axis=1)
-    return df
+    encoder = MultiLabelBinarizer()
+    encoded = encoder.fit_transform(genres)
 
-def append_user_columns(df: pd.DataFrame) -> pd.DataFrame:
+    genre_df = pd.DataFrame(
+        encoded,
+        columns=[f"genre__{name}" for name in encoder.classes_],
+        index=df.index,
+    )
 
-    df['liked'] = 0
+    if set(genre_df.columns) & set(df.columns):
+        raise ValueError("Encoded genre columns already exist.")
 
-    return df
-
-
-if __name__ == "__main__":
-    x = load_available_dataset()
-    print(x.head())
+    return pd.concat([df, genre_df], axis=1)
