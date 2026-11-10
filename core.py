@@ -4,66 +4,72 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.model_selection import train_test_split
 
 
+import numpy as np
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
+
+
+RECOMMENDATION_COLUMNS = [
+    "anime_id",
+    "title",
+    "score",
+    "similarity",
+    "recommendation_score",
+]
+
+
 def recommend_anime(df, genre_columns, n_recommendations=10):
+    if n_recommendations < 1:
+        raise ValueError("n_recommendations must be positive.")
 
-    #Recommend anime based only on genre similarity.
+    if not genre_columns:
+        raise ValueError("At least one genre feature is required.")
 
-    liked_df = df[df["liked"] == 1]
+    liked = df["liked"].eq(1)
 
-    if liked_df.empty:
-        print("No liked anime yet.")
-        return df.head(0)
+    if not liked.any():
+        return pd.DataFrame(columns=RECOMMENDATION_COLUMNS)
 
-    X = df[genre_columns].fillna(0).values
-
-    # Average genre preferences
-    user_profile = liked_df[genre_columns].fillna(0).mean(axis=0).values.reshape(1, -1)
-
-    # KNN
-    knn = NearestNeighbors(
-        metric="cosine",
-        algorithm="brute"
+    features = df[genre_columns].fillna(0).to_numpy(
+        dtype=np.float64
     )
 
-    knn.fit(X)
-
-    # extra because some results may already be liked
-    n_neighbors = min(len(df), n_recommendations + len(liked_df) + 10)
-
-    distances, indices = knn.kneighbors(user_profile, n_neighbors=n_neighbors)
-
-    recommendations = df.iloc[indices[0]].copy()
-
-    recommendations["similarity"] = 1 - distances[0]
-
-    recommendations["normalized_score"] = (
-            recommendations["score"].fillna(0) / 10
+    profile = features[liked.to_numpy()].mean(
+        axis=0, keepdims=True
     )
 
-    recommendations["recommendation_score"] = (
-            0.8 * recommendations["similarity"]
-            + 0.2 * recommendations["normalized_score"]
+    similarities = cosine_similarity(
+        features, profile
+    ).ravel()
+
+    normalized_scores = (
+        pd.to_numeric(df["score"], errors="coerce")
+        .fillna(0)
+        .clip(0, 10)
+        / 10.0
     )
 
-    # Remove already liked anime
-    recommendations = recommendations[
-        ~recommendations["anime_id"].isin(liked_df["anime_id"])
+    ranked = df[["anime_id", "title", "score"]].copy()
+    ranked["similarity"] = similarities
+    ranked["recommendation_score"] = (
+        0.8 * similarities
+        + 0.2 * normalized_scores
+    )
+
+    liked_ids = df.loc[liked, "anime_id"]
+    ranked = ranked.loc[
+        ~ranked["anime_id"].isin(liked_ids)
     ]
 
-    recommendations = recommendations.sort_values(
+    ranked = ranked.sort_values(
         "recommendation_score",
-        ascending=False
+        ascending=False,
+        kind="stable",
     )
 
-    return recommendations[
-        [
-            "anime_id",
-            "title",
-            "score",
-            "similarity",
-            "recommendation_score"
-        ]
-    ].head(n_recommendations)
+    return ranked[RECOMMENDATION_COLUMNS].head(
+        n_recommendations
+    )
 
 def evaluate_recommender(df, genre_columns, n_recommendations=10, test_size=0.2, random_state=42):
     if n_recommendations < 1:
