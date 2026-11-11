@@ -61,3 +61,9 @@ def separate_combined_feature(df, column="genres", split_sign=";"):
         raise ValueError("Encoded genre columns already exist.")
 
     return pd.concat([df, genre_df], axis=1)
+
+def append_user_columns(df):
+    df = df.copy()
+    df["liked"] = 0
+    df["preference"] = "unrated"
+    return df
