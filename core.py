@@ -56,10 +56,12 @@ def recommend_anime(df, genre_columns, n_recommendations=10):
         + 0.2 * normalized_scores
     )
 
-    liked_ids = df.loc[liked, "anime_id"]
-    ranked = ranked.loc[
-        ~ranked["anime_id"].isin(liked_ids)
-    ]
+    eligible = ~liked
+
+    if "preference" in df.columns:
+        eligible &= df["preference"].ne("disliked")
+
+    ranked = ranked.loc[eligible]
 
     ranked = ranked.sort_values(
         "recommendation_score",
