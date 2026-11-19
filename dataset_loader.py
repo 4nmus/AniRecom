@@ -67,3 +67,59 @@ def append_user_columns(df):
     df["liked"] = 0
     df["preference"] = "unrated"
     return df
+
+VALID_PREFERENCES = {
+    "liked", "disliked", "skipped", "unrated"
+}
+
+def load_user_preferences(df, path="user_preferences.csv"):
+    result = df.copy()
+    path = Path(path)
+
+    if not path.exists():
+        return result
+
+    saved = pd.read_csv(
+        path,
+        dtype={"anime_id": str},
+        keep_default_na=False
+    )
+
+    if not {"anime_id", "preference"}.issubset(saved.columns):
+        raise ValueError("Preferences CSV needs anime_id and preference columns.")
+
+    if saved["anime_id"].duplicated().any():
+        raise ValueError("Preferences CSV contains duplicate anime_id values.")
+
+    if not saved["preference"].isin(VALID_PREFERENCES).all():
+        raise ValueError("Preferences CSV contains unknown preference values.")
+
+    lookup = saved.set_index("anime_id")["preference"]
+
+    result["preference"] = (
+        result["anime_id"].astype(str)
+        .map(lookup)
+        .fillna("unrated")
+    )
+
+    result["liked"] = result["preference"].eq("liked").astype(int)
+
+    return result
+
+
+def save_user_preferences(df, path="user_preferences.csv"):
+    if not {"anime_id", "preference"}.issubset(df.columns):
+        raise ValueError("DataFrame needs anime_id and preference columns.")
+
+    if not df["preference"].isin(VALID_PREFERENCES).all():
+        raise ValueError("Cannot save unknown preference values.")
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    feedback = df.loc[
+        df["preference"].ne("unrated"),
+        ["anime_id", "preference"]
+    ]
+
+    feedback.to_csv(path, index=False)
